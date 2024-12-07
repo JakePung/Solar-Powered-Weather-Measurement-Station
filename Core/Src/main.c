@@ -32,6 +32,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define I2C1_SLAVE_ADDR	(0x44<<1) //Temp and Humid device address is 0x44, Hal expects 8 bit address though.
+#define I2C2_SLAVE_ADDR (0x23<<1) //HAL expects 8 bit address, if you pull addr pin high address changes 0x23low, 0x5c high
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -118,6 +119,12 @@ int main(void)
   MX_USART3_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
+  	//ST7735_Init(0);
+    //fillScreen(BLACK);
+    //testAll();
+
+    HAL_Delay(1000);
+    //ST7735_FillRectangle(0, 0, 180, 128, 0xF800); // Fill screen with red
 
   /* USER CODE END 2 */
 
@@ -150,14 +157,42 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint8_t SEND_DATA[2] = {0x24, 0x16}; //LOW REPEATABILITY, CLOCK STRETCHING DISSABLED
+  uint8_t SEND_DATA_TH[2] = {0x24, 0x16}; //LOW REPEATABILITY, CLOCK STRETCHING DISSABLED
   uint8_t HUM_TEMP_DATA[6] = {}; //2 bytes for temp, 2 bytes for humid, then checksum
+
+  uint8_t SI_SENSOR_ON[1] = {0x01};// Solar intensity sensor on opcode
+  uint8_t SI_SENSOR_OFF[1] = {0x00};//Solar Intensity sensor off opcode
+  uint8_t SI_SENSOR_READ[1] = {0x20}; //One time read/ standard command, dont need mode 2 for lowlight
+  uint8_t SI_SENSOR_DATA[2] = {};
   //char log[100];
   //uint16_t log_len;
   //uint8_t msg[] = "Hello\r\n";
 
   while (1)
   {
+	  	/*****************************************************************************?
+	  	 * TEST THE SPI DISPLAY https://controllerstech.com/st7735-1-8-tft-display-with-stm32/
+	  	 */
+/*
+	    ST7735_SetRotation(0);
+	    ST7735_WriteString(0, 0, "HELLO", Font_11x18, RED,BLACK);
+	    HAL_Delay(1000);
+	    fillScreen(BLACK);
+
+	    ST7735_SetRotation(1);
+	    ST7735_WriteString(0, 0, "WORLD", Font_11x18, GREEN,BLACK);
+	    HAL_Delay(1000);
+	    fillScreen(BLACK);
+
+	    ST7735_SetRotation(2);
+	    ST7735_WriteString(0, 0, "FROM", Font_11x18, BLUE,BLACK);
+	    HAL_Delay(1000);
+	    fillScreen(BLACK);
+
+	    ST7735_SetRotation(3);
+	    ST7735_WriteString(0, 0, "ControllersTech", Font_16x26, YELLOW,BLACK);
+	    HAL_Delay(1000);
+	    fillScreen(BLACK);*/
 	  	//printf("Hello it is me\n");
 	  	//HAL_StatusTypeDef status = HAL_UART_Transmit(&huart3, msg, sizeof(msg) - 1, 10000);
 	  	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
@@ -168,50 +203,112 @@ int main(void)
 	  	            // Place a breakpoint here or use a method to inspect `error`
 	  	//}
 
-	  	HAL_Delay(100);
-	  /*	if (status != HAL_OK) {
-	  	    // Place a breakpoint here or toggle an LED to indicate an error
-	  		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-	  		HAL_Delay(1000);
-	  	} else{
-	  		HAL_Delay(1000);
-	  	}*/
-	  	 //printf("Hello World!\n");
-	  	 if(HAL_I2C_Master_Transmit(&hi2c1, I2C1_SLAVE_ADDR, SEND_DATA, 2, HAL_MAX_DELAY) != HAL_OK){
-	  		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
+	  	HAL_Delay(5000);
+
+	  	/************************************************TEMP AND HUMIDITY*************************************************************/
+	  	 if(HAL_I2C_Master_Transmit(&hi2c1, I2C1_SLAVE_ADDR, SEND_DATA_TH, 2, HAL_MAX_DELAY) != HAL_OK){ //Write 00
+	  		//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
 	  		printf("Error Transmittiing to sensor\n");
 	  		return HAL_ERROR;
 	  	    HAL_Delay(1000);
 	  	 }
 	  	 HAL_Delay(100);
 
-	  	 if(HAL_I2C_Master_Receive(&hi2c1, (I2C1_SLAVE_ADDR | 0x01), HUM_TEMP_DATA, 6, HAL_MAX_DELAY)!=HAL_OK){
+	  	 if(HAL_I2C_Master_Receive(&hi2c1, (I2C1_SLAVE_ADDR | 0x01), HUM_TEMP_DATA, 6, HAL_MAX_DELAY)!=HAL_OK){ //read |0x01
 	  		 printf("Error in Recieving Temperature and Humidity data\n");
 	  		 return HAL_ERROR;
 	  		 HAL_Delay(10);
 	  	 }
 	  	 uint16_t temp_raw = HUM_TEMP_DATA[0] << 8 | HUM_TEMP_DATA[1]; //Combine the two bytes into one temp value
-	  	 //HAL_Delay(1000);
-	  	 //printf("TEMPERATURE: %d\n", temp_raw);
-	  	 //HAL_Delay(500);
 	  	 uint16_t humidity_raw = HUM_TEMP_DATA[3] << 8 | HUM_TEMP_DATA[4]; //Combine the humidity values raw
-		 //printf("HUMIDITY: %d\n", humidity_raw);
-	  	 float temp_F = -49 + 315*((float)temp_raw/65535);
-		 float rel_humidity = 100*((float)humidity_raw/65535);
+	  	 float temp_F = -49 + 315*((float)temp_raw/65535); //convert raw reading to Fahrenheit
+		 float rel_humidity = 100*((float)humidity_raw/65535); //Convert raw reading to humidity%
 		 printf("TEMPERATURE: %f\n", temp_F);
 		 HAL_Delay(500);
 		 printf("HUMIDITY: %f\n", rel_humidity);
-	  	 //printf("Temp: %d, Humidity: %d\n", temp_F, rel_humidity);
-	  	 HAL_Delay(1000);
-	  	 char data = "F";
-	  	 //uint8_t TEST[] = {"A", "B"};
-	  	 HAL_SPI_Transmit(&hspi1, (const uint8_t *)&data, 1, HAL_MAX_DELAY);
-	  	 //printf("0x%x, 0x%x, 0x%x, 0x%x\n", buffer[1], buffer[2], buffer[3], buffer[4]);
-	  	 //log_len = sprintf("T&H sensor: 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
-	  	 //printf("%d", buffer);
-	  	 //HAL_UART_Transmit(&huart3, (uint8_t *)log, log_len, HAL_MAX_DELAY);
 
-		 //HAL_Delay(1000);
+	  	 HAL_Delay(1000);
+
+	  //printf("*****************************************************************************\n");
+	  //printf("Pin PC0 Mode: 0x%X\n", HAL_GPIO_GetMode(GPIOC, GPIO_PIN_0));
+	  //printf("Pin PC1 Mode: 0x%X\n", HAL_GPIO_GetMode(GPIOC, GPIO_PIN_1));
+
+	  __HAL_I2C_DISABLE(&hi2c3);
+	  HAL_Delay(500);
+	  __HAL_I2C_ENABLE(&hi2c3);
+	  HAL_Delay(100);
+	   /****************************************************SOLAR INTENSITY****************************************************/
+	 /* printf("**************************************************************************************************************************\n");
+	  	for (uint8_t addr = 0; addr < 128; addr++) {
+	  	  	    if (HAL_I2C_IsDeviceReady(&hi2c1, addr << 1, 1, 100) == HAL_OK) {
+	  	  	        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! address 0x%02X\n", addr);
+	  	  	        return 1;
+	  	  	    }else{
+	  	  	    	printf("Still looking\n");
+	  	  	    }
+	  	}
+	  	return 1;*/
+	  	//printf("Starting\n");
+	  	if(HAL_I2C_Master_Transmit(&hi2c3, I2C2_SLAVE_ADDR, SI_SENSOR_ON, 1, 100) != HAL_OK){ //write
+	  		  	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
+	  		  	//printf("Error turning sensor on\n");
+	  		    //printf("HAL_ERROR: %d\n", HAL_ERROR);
+	  			//printf("I2C Error Code: 0x%lX\n", hi2c3.ErrorCode);
+	  		  	//return HAL_ERROR;
+	  		  	HAL_Delay(1000);
+	    } else{
+	    	//printf("Im so turned on rn\n");
+	    }
+	  	HAL_Delay(10);
+	  	/*
+	  	HAL_Delay(100);
+	  	printf("Got Here #1\n");
+	  	if(HAL_I2C_Master_Transmit(&hi2c2, I2C2_SLAVE_ADDR, SI_SENSOR_OFF, 1, HAL_MAX_DELAY) != HAL_OK){ //write
+	  		//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
+	  		printf("Error Transmittiing to sensor\n");
+	  		//return HAL_ERROR;
+	  		HAL_Delay(1000);
+	    }
+	  	HAL_Delay(100);
+	  		  	printf("Got Here #1\n");
+
+		*/
+	  	/*for (uint8_t addr = 0; addr < 128; addr++) {
+	  	    if (HAL_I2C_IsDeviceReady(&hi2c2, addr << 1, 1, 100) == HAL_OK) {
+	  	        printf("Device found at address 0x%02X\n", addr);
+	  	    }else{
+	  	    	printf("Still looking\n");
+	  	    }
+	  	}
+	  	HAL_Delay(5000);*/
+
+	  	if(HAL_I2C_Master_Transmit(&hi2c3, I2C2_SLAVE_ADDR, SI_SENSOR_READ, 1, 10) != HAL_OK){ //write
+	  		//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
+	  		//printf("I2C Transmit Error. Error Code: 0x%lX\n", hi2c3.ErrorCode);
+	  		//printf("HAL_ERROR value: %d\n", HAL_ERROR);
+
+	  		//return HAL_ERROR;
+	  		//HAL_Delay(1000);
+	    }
+	  	HAL_Delay(120);
+	  	//printf("Got here #2\n");
+	  	if(HAL_I2C_Master_Receive(&hi2c3, (I2C2_SLAVE_ADDR | 0x01), SI_SENSOR_DATA, 2, 10)!=HAL_OK){ //Read
+	  		//printf("I2C Transmit Error. Error Code: 0x%lX\n", hi2c3.ErrorCode);
+	  		//printf("HAL_ERROR value: %d\n", HAL_ERROR);
+
+	  		//return HAL_ERROR;
+	  		//HAL_Delay(1000);
+	    }
+
+	  	HAL_Delay(100);
+	  	//printf("Got here #3\n");
+	  	uint16_t raw_intensity = SI_SENSOR_DATA[0] << 8 | SI_SENSOR_DATA[1]; //format the sensor data 16 bits
+	  	int intensity = (int)raw_intensity/1.2; // cast binary value to a int for conversion formula,
+
+	  	printf("SOLAR INTENSITY: %d\n", intensity); //pprint it oooooout
+
+
+
     /* -- Sample board code for User push-button in interrupt mode ---- */
   //Make a deamon? dual watchdog?
     //sample data collection within five minutes
@@ -256,7 +353,7 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE4) != HAL_OK)
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -267,9 +364,18 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_4;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_0;
   RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLMBOOST = RCC_PLLMBOOST_DIV4;
+  RCC_OscInitStruct.PLL.PLLM = 3;
+  RCC_OscInitStruct.PLL.PLLN = 10;
+  RCC_OscInitStruct.PLL.PLLP = 2;
+  RCC_OscInitStruct.PLL.PLLQ = 2;
+  RCC_OscInitStruct.PLL.PLLR = 1;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLLVCIRANGE_1;
+  RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -280,13 +386,13 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_PCLK3;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -326,7 +432,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00000E14;
+  hi2c1.Init.Timing = 0x30909DEC;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -374,7 +480,7 @@ static void MX_I2C2_Init(void)
 
   /* USER CODE END I2C2_Init 1 */
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x00000E14;
+  hi2c2.Init.Timing = 0x30909DEC;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -422,7 +528,7 @@ static void MX_I2C3_Init(void)
 
   /* USER CODE END I2C3_Init 1 */
   hi2c3.Instance = I2C3;
-  hi2c3.Init.Timing = 0x00000E14;
+  hi2c3.Init.Timing = 0x30909DEC;
   hi2c3.Init.OwnAddress1 = 0;
   hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c3.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -555,13 +661,6 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-
-  /** Enable the reference Clock input
-  */
-  if (HAL_RTCEx_SetRefClock(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN RTC_Init 2 */
 
   /* USER CODE END RTC_Init 2 */
@@ -593,7 +692,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -680,6 +779,7 @@ static void MX_USART3_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
@@ -689,7 +789,33 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7|GPIO_PIN_9, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : PC7 PC9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
+  //	  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+    //  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+     // GPIO_InitStruct.Pull = GPIO_PULLUP;
+      //GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+     // GPIO_InitStruct.Alternate = GPIO_AF4_I2C3;
+      HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
