@@ -72,6 +72,10 @@ static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 //#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+//INITIALIZA THE TIME
+
+
+//HAL_StatusTypeDef HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -306,6 +310,15 @@ int main(void)
 	  	int intensity = (int)raw_intensity/1.2; // cast binary value to a int for conversion formula,
 
 	  	printf("SOLAR INTENSITY: %d\n", intensity); //pprint it oooooout
+	  	RTC_TimeTypeDef sTime;
+	  	RTC_DateTypeDef sDate;
+	  	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+	  	HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); //Put this because RTC locks up after callling GetTime for protection, unlock it by calling this
+	  	printf("%d/%d/%d\n", sDate.Month, sDate.Date, sDate.Year);
+	  	printf("%d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
+
+
+	  	//Now format the string:
 
 
 
@@ -607,6 +620,7 @@ static void MX_RTC_Init(void)
   RTC_PrivilegeStateTypeDef privilegeState = {0};
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -643,21 +657,37 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x0;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x0;
+  sTime.Hours = 0x4; 		//Initial starting, don't think there is any backup power for RTC, so will probably need to keep changing until we get extra battery for RTC stuff
+  sTime.Minutes = 0x55;		//
+  sTime.Seconds = 0x0;		//
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
   if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
-  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-  sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x0;
+  sDate.WeekDay = RTC_WEEKDAY_SATURDAY;
+  sDate.Month = RTC_MONTH_DECEMBER;
+  sDate.Date = 0x7; //Don't think we'll need to change this unless we reprogram the board
+  sDate.Year = 0x24; //Don't need to change till it turns 2025
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the Alarm A
+  */
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
+  sAlarm.AlarmTime.Seconds = 0x0;
+  sAlarm.AlarmTime.SubSeconds = 0x0;
+  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
@@ -687,7 +717,7 @@ static void MX_SPI1_Init(void)
   /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
   hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;

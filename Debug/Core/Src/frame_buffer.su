@@ -1,0 +1,7 @@
+../Core/Src/frame_buffer.c:34:6:frame_buffer_setAddrWindow	16	static
+../Core/Src/frame_buffer.c:40:6:frame_buffer_fillScreen	24	static
+../Core/Src/frame_buffer.c:53:6:frame_buffer_drawPixel	16	static
+../Core/Src/frame_buffer.c:63:6:frame_buffer_drawFastVLine	32	static
+../Core/Src/frame_buffer.c:79:6:frame_buffer_drawFastHLine	32	static
+../Core/Src/frame_buffer.c:95:6:frame_buffer_fillRect	32	static
+../Core/Src/frame_buffer.c:118:10:frame_buffer_Color565	16	static
