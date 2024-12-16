@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include <stdbool.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -26,7 +26,18 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef struct{
+	uint8_t day;		//RTC GetDate
+	uint8_t month;
+	uint8_t year;
+	uint8_t hours;		//RTC GetTime
+	uint8_t minutes;
+	float temp;			//hi2c1
+	float humid;		//hi2c1
+	int irrad;			//hi2c3
+}samples;
 
+samples sample_array[720]; 	//Sample every 2 minutes, 30 samples/ hour for 24 hours is 720 samples a day
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -71,16 +82,15 @@ static void MX_SPI1_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
+void store_data(samples *sample); //Pass the struct of samples, then
+void display_sample_struct(samples *sample); //function for displaying 24 hours worth of data
 //#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-//INITIALIZA THE TIME
 
-
-//HAL_StatusTypeDef HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+volatile int sensor_read = 1; //For signaling when RTC Alarm is triggered
 /* USER CODE END 0 */
 
 /**
@@ -161,161 +171,130 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint8_t SEND_DATA_TH[2] = {0x24, 0x16}; //LOW REPEATABILITY, CLOCK STRETCHING DISSABLED
-  uint8_t HUM_TEMP_DATA[6] = {}; //2 bytes for temp, 2 bytes for humid, then checksum
+  bool button1, button2, button3; // temporary, need button inputs
+  int entry_shown = 0;
+  int new_entry, last_entry = 0;
+  int num_of_entries = 0;
+  int max_entries = 720; //can be changed, 720 = sample every 2 minutes for 1 day
+  //int sensor_read = 1; // can be changed to implement RTC methods, but needs to be set high/at read-level to check sensors on first cycle
+  //bool input_detected = 0; no longer required
 
-  uint8_t SI_SENSOR_ON[1] = {0x01};// Solar intensity sensor on opcode
-  uint8_t SI_SENSOR_OFF[1] = {0x00};//Solar Intensity sensor off opcode
-  uint8_t SI_SENSOR_READ[1] = {0x20}; //One time read/ standard command, dont need mode 2 for lowlight
-  uint8_t SI_SENSOR_DATA[2] = {};
-  //char log[100];
-  //uint16_t log_len;
-  //uint8_t msg[] = "Hello\r\n";
 
   while (1)
   {
-	  	/*****************************************************************************?
-	  	 * TEST THE SPI DISPLAY https://controllerstech.com/st7735-1-8-tft-display-with-stm32/
-	  	 */
-/*
-	    ST7735_SetRotation(0);
-	    ST7735_WriteString(0, 0, "HELLO", Font_11x18, RED,BLACK);
-	    HAL_Delay(1000);
-	    fillScreen(BLACK);
 
-	    ST7735_SetRotation(1);
-	    ST7735_WriteString(0, 0, "WORLD", Font_11x18, GREEN,BLACK);
-	    HAL_Delay(1000);
-	    fillScreen(BLACK);
+	    //NO USLEEP()
+	  //
 
-	    ST7735_SetRotation(2);
-	    ST7735_WriteString(0, 0, "FROM", Font_11x18, BLUE,BLACK);
-	    HAL_Delay(1000);
-	    fillScreen(BLACK);
+		  //if(sensor_read){  // sensor_read wakes up controller from sleep w
 
-	    ST7735_SetRotation(3);
-	    ST7735_WriteString(0, 0, "ControllersTech", Font_16x26, YELLOW,BLACK);
-	    HAL_Delay(1000);
-	    fillScreen(BLACK);*/
-	  	//printf("Hello it is me\n");
-	  	//HAL_StatusTypeDef status = HAL_UART_Transmit(&huart3, msg, sizeof(msg) - 1, 10000);
-	  	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-	  	//if (status != HAL_OK) {
-	  	            // Check the specific error type
-	  	           // uint32_t error = HAL_UART_GetError(&huart3);
+			  //printf("\033\143"); // TEMP - putty clear
+			  printf("Checking new data..."); //screen shows 'updating'
 
-	  	            // Place a breakpoint here or use a method to inspect `error`
-	  	//}
+			  // update the new_entry and last_entry 'pointers' to the storage array
+			  if(num_of_entries == 0){ // when there is no data, new_entry is set to the first value
+				  new_entry = 0;
+				  last_entry = 0;
+			  }
+			  else{ // in normal operating, new_entry is incremented to not overwrite the previous read
+				  new_entry += 1;
+				  new_entry = new_entry % max_entries; // will wrap around if reaching the end of the array
+			  }
+			  printf("1\n");
+			  if(new_entry == last_entry){ // if this read will overwrite the oldest value, increase the pointer to the next oldest value
+				last_entry += 1;
+				last_entry = last_entry % max_entries; // will wrap around if reaching the end of the array
+			  }
+			  printf("2\n");
+			  //read from sensors to index of new_entry
+			  store_data(&sample_array[new_entry]);
 
-	  	HAL_Delay(5000);
+			  printf("3\n");
+			  entry_shown = new_entry; // show the most up-to-date data on the display
+			  if(num_of_entries < max_entries){ // increase the 'size' of the used array if not full yet
+				  num_of_entries += 1;
+			  }
 
-	  	/************************************************TEMP AND HUMIDITY*************************************************************/
-	  	 if(HAL_I2C_Master_Transmit(&hi2c1, I2C1_SLAVE_ADDR, SEND_DATA_TH, 2, HAL_MAX_DELAY) != HAL_OK){ //Write 00
-	  		//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
-	  		printf("Error Transmittiing to sensor\n");
-	  		return HAL_ERROR;
-	  	    HAL_Delay(1000);
-	  	 }
-	  	 HAL_Delay(100);
+			  HAL_Delay(500); //leave error messages on the screen for a moment
+			  	  	  	  	  // TODO - store error messages to struct when they come up.
 
-	  	 if(HAL_I2C_Master_Receive(&hi2c1, (I2C1_SLAVE_ADDR | 0x01), HUM_TEMP_DATA, 6, HAL_MAX_DELAY)!=HAL_OK){ //read |0x01
-	  		 printf("Error in Recieving Temperature and Humidity data\n");
-	  		 return HAL_ERROR;
-	  		 HAL_Delay(10);
-	  	 }
-	  	 uint16_t temp_raw = HUM_TEMP_DATA[0] << 8 | HUM_TEMP_DATA[1]; //Combine the two bytes into one temp value
-	  	 uint16_t humidity_raw = HUM_TEMP_DATA[3] << 8 | HUM_TEMP_DATA[4]; //Combine the humidity values raw
-	  	 float temp_F = -49 + 315*((float)temp_raw/65535); //convert raw reading to Fahrenheit
-		 float rel_humidity = 100*((float)humidity_raw/65535); //Convert raw reading to humidity%
-		 printf("TEMPERATURE: %f\n", temp_F);
-		 HAL_Delay(500);
-		 printf("HUMIDITY: %f\n", rel_humidity);
+			  //update screen
+			  display_sample_struct(&sample_array[entry_shown]);
+			  printf("4\n");
 
-	  	 HAL_Delay(1000);
+			  sensor_read = 0;
 
-	  //printf("*****************************************************************************\n");
-	  //printf("Pin PC0 Mode: 0x%X\n", HAL_GPIO_GetMode(GPIOC, GPIO_PIN_0));
-	  //printf("Pin PC1 Mode: 0x%X\n", HAL_GPIO_GetMode(GPIOC, GPIO_PIN_1));
 
-	  __HAL_I2C_DISABLE(&hi2c3);
-	  HAL_Delay(500);
-	  __HAL_I2C_ENABLE(&hi2c3);
-	  HAL_Delay(100);
-	   /****************************************************SOLAR INTENSITY****************************************************/
-	 /* printf("**************************************************************************************************************************\n");
-	  	for (uint8_t addr = 0; addr < 128; addr++) {
-	  	  	    if (HAL_I2C_IsDeviceReady(&hi2c1, addr << 1, 1, 100) == HAL_OK) {
-	  	  	        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! address 0x%02X\n", addr);
-	  	  	        return 1;
-	  	  	    }else{
-	  	  	    	printf("Still looking\n");
-	  	  	    }
-	  	}
-	  	return 1;*/
-	  	//printf("Starting\n");
-	  	if(HAL_I2C_Master_Transmit(&hi2c3, I2C2_SLAVE_ADDR, SI_SENSOR_ON, 1, 100) != HAL_OK){ //write
-	  		  	//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
-	  		  	//printf("Error turning sensor on\n");
-	  		    //printf("HAL_ERROR: %d\n", HAL_ERROR);
-	  			//printf("I2C Error Code: 0x%lX\n", hi2c3.ErrorCode);
-	  		  	//return HAL_ERROR;
-	  		  	HAL_Delay(1000);
-	    } else{
-	    	//printf("Im so turned on rn\n");
-	    }
-	  	HAL_Delay(10);
-	  	/*
-	  	HAL_Delay(100);
-	  	printf("Got Here #1\n");
-	  	if(HAL_I2C_Master_Transmit(&hi2c2, I2C2_SLAVE_ADDR, SI_SENSOR_OFF, 1, HAL_MAX_DELAY) != HAL_OK){ //write
-	  		//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
-	  		printf("Error Transmittiing to sensor\n");
-	  		//return HAL_ERROR;
-	  		HAL_Delay(1000);
-	    }
-	  	HAL_Delay(100);
-	  		  	printf("Got Here #1\n");
+		  if(((BspButtonState == BUTTON_PRESSED)||button2||button3) /*&& !input_detected*/ ){
+			  //input_detected = true; // debounce detector- won't run this section again until all buttons left unpressed.
+			  // DISABLED due to RTC being implemented differently
 
-		*/
-	  	/*for (uint8_t addr = 0; addr < 128; addr++) {
-	  	    if (HAL_I2C_IsDeviceReady(&hi2c2, addr << 1, 1, 100) == HAL_OK) {
-	  	        printf("Device found at address 0x%02X\n", addr);
-	  	    }else{
-	  	    	printf("Still looking\n");
-	  	    }
-	  	}
-	  	HAL_Delay(5000);*/
+			  if(BspButtonState == BUTTON_PRESSED){ // Button 1 decrements the index of the data showed on-screen
+				  BspButtonState = BUTTON_RELEASED;
+				  if(entry_shown == 0){
+					  entry_shown = num_of_entries - 1; //wraps around to highest used value when falling off the low end of storage
+				  }
+				  else{
+					  entry_shown -= 1;
+				  }
+			  }
+			  if(button2){ // Button 2 increments the index of the data shown on-screen
+				  entry_shown += 1;
+				  entry_shown = entry_shown % num_of_entries;
+			  }
+			  if(button3){ //  Button 3 deposits available data to the SD card
+				  // REPURPOSED - instead this button with scan through all avaliable data, displaying each for each struct for a half second before transitioning to the next
+				  entry_shown = last_entry;
+				  while(1){
+					printf("\033\143"); //Clear terminal
+					printf("About to display 24 hours worth of data, data is sampled every 2 minutes.\n");
+					printf("For 24 hours worth of data, that is 720 samples.\n");
+					printf("Each sample will be displayed for a half a second\n");
+					HAL_Delay(10000);
+					display_sample_struct(&sample_array[entry_shown]);
+					HAL_Delay(500);
+					if(entry_shown == new_entry){
+						printf("REACHED END OF STORED DATA\n RESUMING NORMAL FUNCTIONING IN 20 SECONDS\n");
+						HAL_Delay(20000);
+						break;
+					}
+					entry_shown += 1;
+					entry_shown = entry_shown % num_of_entries;
+					if(button1 || button2){ // Emergency abort of scan
+						printf("ABORTING SCROLL\n RESUMING NORMAL FUNCTION WHEN BUTTON RELEASED\n");
+						while(button1 || button2){
+							HAL_Delay(100);
+						}
+						break;
+					}
+				  }
 
-	  	if(HAL_I2C_Master_Transmit(&hi2c3, I2C2_SLAVE_ADDR, SI_SENSOR_READ, 1, 10) != HAL_OK){ //write
-	  		//HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); //Check for transmission errors to the temperature and humidity sensor
-	  		//printf("I2C Transmit Error. Error Code: 0x%lX\n", hi2c3.ErrorCode);
-	  		//printf("HAL_ERROR value: %d\n", HAL_ERROR);
+			  }
+			printf("I GET HERE\n");
+			display_sample_struct(&sample_array[entry_shown]);
+		   //Following code was heavily influenced from the STM32 website for getting RTC periodic interrupts
+		   //https://community.st.com/t5/stm32-mcus/how-to-configure-the-rtc-to-wake-up-the-stm32-periodically-from/ta-p/49836
+			HAL_SuspendTick();
+			HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 20, RTC_WAKEUPCLOCK_CK_SPRE_16BITS, 0); //Need clock spreader to reduce frequency so we could input 120 seconds, 1Hz
 
-	  		//return HAL_ERROR;
-	  		//HAL_Delay(1000);
-	    }
-	  	HAL_Delay(120);
-	  	//printf("Got here #2\n");
-	  	if(HAL_I2C_Master_Receive(&hi2c3, (I2C2_SLAVE_ADDR | 0x01), SI_SENSOR_DATA, 2, 10)!=HAL_OK){ //Read
-	  		//printf("I2C Transmit Error. Error Code: 0x%lX\n", hi2c3.ErrorCode);
-	  		//printf("HAL_ERROR value: %d\n", HAL_ERROR);
+			//Go into low power state Stop3
+			HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI); //Enter stop mode 3,RTC still runs, wait for interrupt
+			HAL_RTCEx_DeactivateWakeUpTimer(&hrtc); 	//Once Stop 3 has seen the interrupt from the wakeup timer deactivate it
+			SystemClock_Config();						//Restart the clock
+			HAL_ResumeTick();							//Resume systick
+			//}
 
-	  		//return HAL_ERROR;
-	  		//HAL_Delay(1000);
-	    }
+		  /*if(!button1 && !button2 && !button3){
+			  input_detected = 0;
+		  } DISABLED due to RTC being implemented differently*/
 
-	  	HAL_Delay(100);
-	  	//printf("Got here #3\n");
-	  	uint16_t raw_intensity = SI_SENSOR_DATA[0] << 8 | SI_SENSOR_DATA[1]; //format the sensor data 16 bits
-	  	int intensity = (int)raw_intensity/1.2; // cast binary value to a int for conversion formula,
 
-	  	printf("SOLAR INTENSITY: %d\n", intensity); //pprint it oooooout
-	  	RTC_TimeTypeDef sTime;
-	  	RTC_DateTypeDef sDate;
-	  	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-	  	HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); //Put this because RTC locks up after callling GetTime for protection, unlock it by calling this
-	  	printf("%d/%d/%d\n", sDate.Month, sDate.Date, sDate.Year);
-	  	printf("%d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
+		  //Sleep til interrupt (RTC or GPIO)
+
+
+
+	  /* --- End of Logic Rewrite --- */
+
 
 
 	  	//Now format the string:
@@ -323,35 +302,20 @@ int main(void)
 
 
     /* -- Sample board code for User push-button in interrupt mode ---- */
-  //Make a deamon? dual watchdog?
-    //sample data collection within five minutes
-	  //Read Temperature and humidity data from sensor
-	  //Read Solar intensity
-	  //Record date and time, RCC
-
-	//Format and store collected data: date MM/DD/YY temperature humidity irradiance
-	//Store collected Data into SD card
-
-	//when prevoked: interrupt, display the most recent readings, single line. How could we display battery life? internal temperature?
-
-	//secondary screen, display the last 24 hours worth of data
-	  //average all the data over one hour
-	  //create some graphing tools for the last 24, date above?
-
 
 	//if (BspButtonState == BUTTON_PRESSED)
     //{
       /* Update button state */
-     // BspButtonState = BUTTON_RELEASED;
+      //BspButtonState = BUTTON_RELEASED;
       /* -- Sample board code to toggle led ---- */
       //BSP_LED_Toggle(LED_GREEN);
 
       /* ..... Perform your action ..... */
     //}
     /* USER CODE END WHILE */
-
+     }
     /* USER CODE BEGIN 3 */
-  }
+   }
   /* USER CODE END 3 */
 }
 
@@ -620,7 +584,6 @@ static void MX_RTC_Init(void)
   RTC_PrivilegeStateTypeDef privilegeState = {0};
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
-  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -633,7 +596,7 @@ static void MX_RTC_Init(void)
   hrtc.Init.AsynchPrediv = 127;
   hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_POS1;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
@@ -657,37 +620,35 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x4; 		//Initial starting, don't think there is any backup power for RTC, so will probably need to keep changing until we get extra battery for RTC stuff
-  sTime.Minutes = 0x55;		//
-  sTime.Seconds = 0x0;		//
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
   if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
-  sDate.WeekDay = RTC_WEEKDAY_SATURDAY;
-  sDate.Month = RTC_MONTH_DECEMBER;
-  sDate.Date = 0x7; //Don't think we'll need to change this unless we reprogram the board
-  sDate.Year = 0x24; //Don't need to change till it turns 2025
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
 
-  /** Enable the Alarm A
+  /** Enable the WakeUp
   */
-  sAlarm.AlarmTime.Hours = 0x0;
-  sAlarm.AlarmTime.Minutes = 0x0;
-  sAlarm.AlarmTime.Seconds = 0x0;
-  sAlarm.AlarmTime.SubSeconds = 0x0;
-  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
-  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
-  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
-  sAlarm.AlarmDateWeekDay = 0x1;
-  sAlarm.Alarm = RTC_ALARM_A;
-  if (HAL_RTC_SetAlarm(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 120, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable Calibration
+  */
+  if (HAL_RTCEx_SetCalibrationOutPut(&hrtc, RTC_CALIBOUTPUT_1HZ) != HAL_OK)
   {
     Error_Handler();
   }
@@ -863,6 +824,125 @@ static void MX_GPIO_Init(void)
 //	return ch;
 //}
 
+//The following code was heavily taken from the STM32 Wiki Page for RTC alarms, the following is a link to the page.
+//https://wiki.st.com/stm32mcu/wiki/Getting_started_with_RTC#:~:text=1%20Sec%20Interrupt%20with%20Rtc%20Stm32
+
+/*void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc) {
+  RTC_AlarmTypeDef sAlarm;
+  HAL_RTC_GetAlarm(hrtc,&sAlarm,RTC_ALARM_A,FORMAT_BIN); 			//Get the value of the alarm
+  if(sAlarm.AlarmTime.Minutes>57) { 								//See if it is within
+    sAlarm.AlarmTime.Minutes=0;
+  }else{
+    sAlarm.AlarmTime.Minutes=sAlarm.AlarmTime.Minutes+2;			//Increment by two minutes, want to sample data every two minutes
+  }
+  	printf("Right after RTC Callback if and else\n");
+    while(HAL_RTC_SetAlarm_IT(hrtc, &sAlarm, FORMAT_BIN)!=HAL_OK){} //Lock up on failure for now we can make this better
+  	printf("Right after error checking/lockup\n");
+    sensor_read = 1; 				 							//Querry the sensors every 2 minutes
+    printf("Change signal to 1 so we can get data\n");
+}
+*/
+void display_sample_struct(samples *sample){ // temporary Putty code while trying to figure out our display
+// Example use: display_sample_struct( *store_data[entry_shown]);d
+	printf("\033\143"); //clear Putty
+	printf("Date/Time - %d/%d/%d - %d:%d\n",sample->month,sample->day,sample->year,sample->hours,sample->minutes); //print data and time in a single line
+	printf("Temperature - %f\u00B0C\n", sample->temp); //print temperature with degree symbol
+	printf("Humidity - %f\n", sample->humid); //print relative humidity
+	printf("Irradiance - %d\n", sample->irrad); //print irradiance (may require additional filtering)
+}
+//Function for getting sensor data
+void store_data(samples *sample_inst){
+
+	uint8_t SEND_DATA_TH[2] = {0x24, 0x16}; //LOW REPEATABILITY, CLOCK STRETCHING DISSABLED
+	uint8_t HUM_TEMP_DATA[6] = {}; //2 bytes for temp, 2 bytes for humid, then checksum
+    uint8_t SI_SENSOR_ON[1] = {0x01};// Solar intensity sensor on opcode
+	//uint8_t SI_SENSOR_OFF[1] = {0x00};//Solar Intensity sensor off opcode
+	uint8_t SI_SENSOR_READ[1] = {0x20}; //One time read/ standard command, dont need mode 2 for lowlight
+	uint8_t SI_SENSOR_DATA[2] = {};
+	//Query temperature and humidity sensor for a one time measurement, automatically shutsdown after single measurement mode
+  	if(HAL_I2C_Master_Transmit(&hi2c1, I2C1_SLAVE_ADDR, SEND_DATA_TH, 2, HAL_MAX_DELAY) != HAL_OK){ //Write 00
+  		printf("ERROR!\n");;
+  	    HAL_Delay(1000);
+  	 }
+  	 HAL_Delay(100);
+  	 //Get the response from the sensor, 3rd byte is checksum, don't need that just ignore when combining values
+  	 if(HAL_I2C_Master_Receive(&hi2c1, (I2C1_SLAVE_ADDR | 0x01), HUM_TEMP_DATA, 6, HAL_MAX_DELAY)!=HAL_OK){ //read |0x01
+  		 printf("ERROR!\n");;
+  		 HAL_Delay(1000);
+  	 }
+  	 uint16_t temp_raw = HUM_TEMP_DATA[0] << 8 | HUM_TEMP_DATA[1]; 			//Combine the two bytes into one temperature value
+  	 uint16_t humidity_raw = HUM_TEMP_DATA[3] << 8 | HUM_TEMP_DATA[4];		//Combine the humidity values raw
+  	 float temp_F = -49 + 315*((float)temp_raw/65535); 						//convert raw reading to Fahrenheit
+	 float rel_humidity = 100*((float)humidity_raw/65535); 					//Convert raw reading to humidity%
+	 //printf("TEMPERATURE: %f\n", temp_F);
+	 /*******************************************************TEST*************************************************************/
+	 sample_inst->temp = temp_F;											//Update the array for temperature(F)
+
+	 HAL_Delay(500);
+
+	 //printf("HUMIDITY: %f\n", rel_humidity);
+
+	 sample_inst->humid = rel_humidity; 									//Update the array for humidity
+  	 /*************************************************************************************************************************/
+	 HAL_Delay(1000);
+
+  __HAL_I2C_DISABLE(&hi2c3); //Restarting i2c3 made it work
+  HAL_Delay(500);
+  __HAL_I2C_ENABLE(&hi2c3);
+  HAL_Delay(100);
+
+   /****************************************************SOLAR INTENSITY****************************************************/
+  	//Query Illuminance sensor to get it turned on
+  	if(HAL_I2C_Master_Transmit(&hi2c3, I2C2_SLAVE_ADDR, SI_SENSOR_ON, 1, 100) != HAL_OK){ //write
+  		  	printf("ERROR!\n");
+  		  	HAL_Delay(1000);
+    } else{
+    	//printf("Im so turned on rn\n");
+    }
+
+  	HAL_Delay(10);
+  	//Query sensor to get a reading
+  	if(HAL_I2C_Master_Transmit(&hi2c3, I2C2_SLAVE_ADDR, SI_SENSOR_READ, 1, 10) != HAL_OK){ //write
+  		printf("ERROR!\n");;
+  		HAL_Delay(1000);
+    }
+
+  	HAL_Delay(120);
+  	//Grab measured illuminance from the
+  	if(HAL_I2C_Master_Receive(&hi2c3, (I2C2_SLAVE_ADDR | 0x01), SI_SENSOR_DATA, 2, 10)!=HAL_OK){ //Read
+
+  		printf("ERROR!\n");;
+  		HAL_Delay(1000);
+    }
+
+  	HAL_Delay(100);
+  	//printf("Got here #3\n");
+  	uint16_t raw_intensity = SI_SENSOR_DATA[0] << 8 | SI_SENSOR_DATA[1]; 	//format the sensor data 16 bits
+  	int intensity = (int)raw_intensity/1.2; 								// cast binary value to a int for conversion formula,
+
+  	//printf("SOLAR INTENSITY: %d\n", intensity); 							//pprint it oooooout
+
+
+  	sample_inst->irrad = intensity;
+
+
+  	RTC_TimeTypeDef sTime;
+  	RTC_DateTypeDef sDate;
+  	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+  	HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); 						//Put this because RTC locks up after callling GetTime for protection, unlock it by calling this
+
+  	//Update sample structure array instance with the date and time.
+  	sample_inst->day = sDate.Date;
+  	sample_inst->month = sDate.Month;
+  	sample_inst->year = sDate.Year;
+
+  	sample_inst->minutes = sTime.Minutes;
+  	sample_inst->hours = sTime.Hours;
+
+  	//printf("%d/%d/%d\n", sDate.Month, sDate.Date, sDate.Year);
+  	//printf("%d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
+
+}
 /* USER CODE END 4 */
 
 /**
