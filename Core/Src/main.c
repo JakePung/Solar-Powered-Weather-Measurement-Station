@@ -57,12 +57,9 @@ COM_InitTypeDef BspCOMInit;
 __IO uint32_t BspButtonState = BUTTON_RELEASED;
 
 I2C_HandleTypeDef hi2c1;
-I2C_HandleTypeDef hi2c2;
 I2C_HandleTypeDef hi2c3;
 
 RTC_HandleTypeDef hrtc;
-
-SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart3;
 
@@ -76,21 +73,23 @@ static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ICACHE_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_I2C2_Init(void);
 static void MX_I2C3_Init(void);
-static void MX_SPI1_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
-void store_data(samples *sample); //Pass the struct of samples, then
+void store_data(samples *sample); //Pass the struct array of samples, then update the struct with values from sensors
 void display_sample_struct(samples *sample); //function for displaying 24 hours worth of data
+void power_down(void);
+void power_up(void);
 //#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile int sensor_read = 1; //For signaling when RTC Alarm is triggered
+//volatile int sensor_read = 1; //For signaling when RTC Alarm is triggered
+//volatile bool on_signal = false;
+volatile uint32_t count = 0;
 /* USER CODE END 0 */
 
 /**
@@ -127,9 +126,7 @@ int main(void)
   MX_GPIO_Init();
   MX_ICACHE_Init();
   MX_I2C1_Init();
-  MX_I2C2_Init();
   MX_I2C3_Init();
-  MX_SPI1_Init();
   MX_USART3_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
@@ -139,7 +136,7 @@ int main(void)
 
     HAL_Delay(1000);
     //ST7735_FillRectangle(0, 0, 180, 128, 0xF800); // Fill screen with red
-
+    __enable_irq();
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -171,7 +168,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  bool button1, button2, button3; // temporary, need button inputs
+  //bool button1, button2, button3; // temporary, need button inputs
+  //HAL_UART_Transmit(&huart3, (uint8_t *)"Hello world\n", 12, HAL_MAX_DELAY);
+
+  //printf("Literally print anything\n");
   int entry_shown = 0;
   int new_entry, last_entry = 0;
   int num_of_entries = 0;
@@ -179,14 +179,39 @@ int main(void)
   //int sensor_read = 1; // can be changed to implement RTC methods, but needs to be set high/at read-level to check sensors on first cycle
   //bool input_detected = 0; no longer required
 
-
+  int button2 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+  //int button3 =HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
+  bool busy = false;
+  uint32_t start_powerdown = 0;
   while (1)
   {
+	  //printf("Something\n");
+	  button2 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+	  //button3 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
+	 /* button2 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+	  HAL_Delay(100);
+	  button3 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
+	  HAL_Delay(50);
+	  	  if (button2 == GPIO_PIN_SET) {  // If button 2 is pressed
+	          printf("Button 2 Pressed\n");  // Print message to console
+	          button2 = 0;
+	      }
 
+	  	  else if (button3 == GPIO_PIN_SET) {  // If button 3 is pressed
+	          printf("Button 3 Pressed\n");  // Print message to console
+	          button3 = 0;
+	      }
+
+	      // Optional: Test BspButtonState if you're using a custom button system (e.g., for button 1)
+	  	  else if (BspButtonState == BUTTON_PRESSED) {
+	    	  BspButtonState = BUTTON_RELEASED;
+	          printf("Button 1 Pressed\n");  // Print message for Button 1
+	      }*/
 	    //NO USLEEP()
-	  //
-
-		  //if(sensor_read){  // sensor_read wakes up controller from sleep w
+	  	  //printf("about to enter power_down\n");
+	  	  //power_down();
+	  	  if((count - start_powerdown >= 120000) && !busy){
+		     power_up();  // sensor_read wakes up controller from sleep w
 
 			  //printf("\033\143"); // TEMP - putty clear
 			  printf("Checking new data..."); //screen shows 'updating'
@@ -200,37 +225,43 @@ int main(void)
 				  new_entry += 1;
 				  new_entry = new_entry % max_entries; // will wrap around if reaching the end of the array
 			  }
-			  printf("1\n");
+			  //printf("1\n");
 			  if(new_entry == last_entry){ // if this read will overwrite the oldest value, increase the pointer to the next oldest value
 				last_entry += 1;
 				last_entry = last_entry % max_entries; // will wrap around if reaching the end of the array
 			  }
-			  printf("2\n");
+			  //printf("2\n");
 			  //read from sensors to index of new_entry
 			  store_data(&sample_array[new_entry]);
 
-			  printf("3\n");
+			  //printf("3\n");
 			  entry_shown = new_entry; // show the most up-to-date data on the display
 			  if(num_of_entries < max_entries){ // increase the 'size' of the used array if not full yet
 				  num_of_entries += 1;
 			  }
 
-			  HAL_Delay(500); //leave error messages on the screen for a moment
-			  	  	  	  	  // TODO - store error messages to struct when they come up.
+			  //HAL_Delay(500); //leave error messages on the screen for a moment
+	  	  	  	  // TODO - store error messages to struct when they come up.
 
 			  //update screen
 			  display_sample_struct(&sample_array[entry_shown]);
-			  printf("4\n");
+			  //printf("4\n");
+			  power_down();
+			  start_powerdown = count;
+	  	  }
 
-			  sensor_read = 0;
 
 
-		  if(((BspButtonState == BUTTON_PRESSED)||button2||button3) /*&& !input_detected*/ ){
-			  //input_detected = true; // debounce detector- won't run this section again until all buttons left unpressed.
+
+
+		 if(BspButtonState == BUTTON_PRESSED){
+			  HAL_Delay(50);//input_detected = true; // debounce detector- won't run this section again until all buttons left unpressed.
+			  if(BspButtonState == BUTTON_PRESSED){
 			  // DISABLED due to RTC being implemented differently
+			  //printf("A button is pressed\n");
+			/*  if(button3){ // Button 1 decrements the index of the data showed on-screen
 
-			  if(BspButtonState == BUTTON_PRESSED){ // Button 1 decrements the index of the data showed on-screen
-				  BspButtonState = BUTTON_RELEASED;
+				  //printf("button1 was pressed");
 				  if(entry_shown == 0){
 					  entry_shown = num_of_entries - 1; //wraps around to highest used value when falling off the low end of storage
 				  }
@@ -239,49 +270,50 @@ int main(void)
 				  }
 			  }
 			  if(button2){ // Button 2 increments the index of the data shown on-screen
+				  //printf("button2 was pressed\n");
 				  entry_shown += 1;
 				  entry_shown = entry_shown % num_of_entries;
-			  }
-			  if(button3){ //  Button 3 deposits available data to the SD card
+			  }*/
+			  if(BspButtonState == BUTTON_PRESSED){ //  Button 3 deposits available data to the SD card
+				  BspButtonState = BUTTON_RELEASED;
 				  // REPURPOSED - instead this button with scan through all avaliable data, displaying each for each struct for a half second before transitioning to the next
 				  entry_shown = last_entry;
+				  printf("About to display 24 Hours worth of data\n");
+				  printf("***************************************\n");
+				  printf("***************************************\n");
 				  while(1){
 					printf("\033\143"); //Clear terminal
-					printf("About to display 24 hours worth of data, data is sampled every 2 minutes.\n");
-					printf("For 24 hours worth of data, that is 720 samples.\n");
-					printf("Each sample will be displayed for a half a second\n");
-					HAL_Delay(10000);
 					display_sample_struct(&sample_array[entry_shown]);
-					HAL_Delay(500);
+					HAL_Delay(200);
 					if(entry_shown == new_entry){
-						printf("REACHED END OF STORED DATA\n RESUMING NORMAL FUNCTIONING IN 20 SECONDS\n");
+						printf("REACHED END OF STORED DATA\n RESUMING NORMAL OPERATIONS\n");
+						printf("*******************************************************\n");
+						printf("*******************************************************\n");
 						HAL_Delay(20000);
 						break;
 					}
 					entry_shown += 1;
 					entry_shown = entry_shown % num_of_entries;
-					if(button1 || button2){ // Emergency abort of scan
+					if((BspButtonState == BUTTON_PRESSED) || button2){ // Emergency abort of scan
+						BspButtonState = BUTTON_RELEASED;
 						printf("ABORTING SCROLL\n RESUMING NORMAL FUNCTION WHEN BUTTON RELEASED\n");
-						while(button1 || button2){
+						while((BspButtonState == BUTTON_PRESSED) || button2){
 							HAL_Delay(100);
 						}
-						break;
+					break;
 					}
 				  }
 
 			  }
-			printf("I GET HERE\n");
-			display_sample_struct(&sample_array[entry_shown]);
+		  	}
+  	  	  }
+		  HAL_Delay(5000);
+
+			//printf("I GET HERE\n");
+			//display_sample_struct(&sample_array[entry_shown]);
 		   //Following code was heavily influenced from the STM32 website for getting RTC periodic interrupts
 		   //https://community.st.com/t5/stm32-mcus/how-to-configure-the-rtc-to-wake-up-the-stm32-periodically-from/ta-p/49836
-			HAL_SuspendTick();
-			HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 20, RTC_WAKEUPCLOCK_CK_SPRE_16BITS, 0); //Need clock spreader to reduce frequency so we could input 120 seconds, 1Hz
-
-			//Go into low power state Stop3
-			HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI); //Enter stop mode 3,RTC still runs, wait for interrupt
-			HAL_RTCEx_DeactivateWakeUpTimer(&hrtc); 	//Once Stop 3 has seen the interrupt from the wakeup timer deactivate it
-			SystemClock_Config();						//Restart the clock
-			HAL_ResumeTick();							//Resume systick
+						//Resume systick
 			//}
 
 		  /*if(!button1 && !button2 && !button3){
@@ -313,7 +345,7 @@ int main(void)
       /* ..... Perform your action ..... */
     //}
     /* USER CODE END WHILE */
-     }
+
     /* USER CODE BEGIN 3 */
    }
   /* USER CODE END 3 */
@@ -438,54 +470,6 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
-
-}
-
-/**
-  * @brief I2C2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C2_Init(void)
-{
-
-  /* USER CODE BEGIN I2C2_Init 0 */
-
-  /* USER CODE END I2C2_Init 0 */
-
-  /* USER CODE BEGIN I2C2_Init 1 */
-
-  /* USER CODE END I2C2_Init 1 */
-  hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x30909DEC;
-  hi2c2.Init.OwnAddress1 = 0;
-  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c2.Init.OwnAddress2 = 0;
-  hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
-  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Analogue filter
-  */
-  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Digital filter
-  */
-  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C2_Init 2 */
-
-  /* USER CODE END I2C2_Init 2 */
 
 }
 
@@ -620,8 +604,8 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x0;
-  sTime.Minutes = 0x0;
+  sTime.Hours = 0x8;
+  sTime.Minutes = 0x30;
   sTime.Seconds = 0x0;
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
@@ -629,19 +613,12 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-  sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x0;
+  sDate.WeekDay = RTC_WEEKDAY_TUESDAY;
+  sDate.Month = RTC_MONTH_DECEMBER;
+  sDate.Date = 0x16;
+  sDate.Year = 0x24;
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Enable the WakeUp
-  */
-  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 120, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -653,65 +630,10 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
-
+  //HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);  // Set the interrupt priority
+  HAL_NVIC_EnableIRQ(RTC_IRQn);
+  HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
   /* USER CODE END RTC_Init 2 */
-
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  SPI_AutonomousModeConfTypeDef HAL_SPI_AutonomousMode_Cfg_Struct = {0};
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 0x7;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi1.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi1.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi1.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi1.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi1.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi1.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi1.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  hspi1.Init.ReadyMasterManagement = SPI_RDY_MASTER_MANAGEMENT_INTERNALLY;
-  hspi1.Init.ReadyPolarity = SPI_RDY_POLARITY_HIGH;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  HAL_SPI_AutonomousMode_Cfg_Struct.TriggerState = SPI_AUTO_MODE_DISABLE;
-  HAL_SPI_AutonomousMode_Cfg_Struct.TriggerSelection = SPI_GRP1_GPDMA_CH0_TCF_TRG;
-  HAL_SPI_AutonomousMode_Cfg_Struct.TriggerPolarity = SPI_TRIG_POLARITY_RISING;
-  if (HAL_SPIEx_SetConfigAutonomousMode(&hspi1, &HAL_SPI_AutonomousMode_Cfg_Struct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
 
 }
 
@@ -786,6 +708,20 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
 
+  /*Configure GPIO pins : PA0 PA2 PA3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_2|GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF4_I2C2;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PC7 PC9 */
   GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -824,24 +760,15 @@ static void MX_GPIO_Init(void)
 //	return ch;
 //}
 
-//The following code was heavily taken from the STM32 Wiki Page for RTC alarms, the following is a link to the page.
-//https://wiki.st.com/stm32mcu/wiki/Getting_started_with_RTC#:~:text=1%20Sec%20Interrupt%20with%20Rtc%20Stm32
 
-/*void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc) {
-  RTC_AlarmTypeDef sAlarm;
-  HAL_RTC_GetAlarm(hrtc,&sAlarm,RTC_ALARM_A,FORMAT_BIN); 			//Get the value of the alarm
-  if(sAlarm.AlarmTime.Minutes>57) { 								//See if it is within
-    sAlarm.AlarmTime.Minutes=0;
-  }else{
-    sAlarm.AlarmTime.Minutes=sAlarm.AlarmTime.Minutes+2;			//Increment by two minutes, want to sample data every two minutes
-  }
-  	printf("Right after RTC Callback if and else\n");
-    while(HAL_RTC_SetAlarm_IT(hrtc, &sAlarm, FORMAT_BIN)!=HAL_OK){} //Lock up on failure for now we can make this better
-  	printf("Right after error checking/lockup\n");
-    sensor_read = 1; 				 							//Querry the sensors every 2 minutes
-    printf("Change signal to 1 so we can get data\n");
+void power_down(void){
+	 __HAL_I2C_DISABLE(&hi2c3); //illuminance sensor
+	 __HAL_I2C_DISABLE(&hi2c1); //temp and humidity sensor
 }
-*/
+void power_up(void){
+	 __HAL_I2C_ENABLE(&hi2c3); //illuminance sensor
+	 __HAL_I2C_ENABLE(&hi2c1); //temperature and humidity sensor
+}
 void display_sample_struct(samples *sample){ // temporary Putty code while trying to figure out our display
 // Example use: display_sample_struct( *store_data[entry_shown]);d
 	printf("\033\143"); //clear Putty
@@ -878,18 +805,18 @@ void store_data(samples *sample_inst){
 	 /*******************************************************TEST*************************************************************/
 	 sample_inst->temp = temp_F;											//Update the array for temperature(F)
 
-	 HAL_Delay(500);
+	 //HAL_Delay(500);
 
 	 //printf("HUMIDITY: %f\n", rel_humidity);
 
 	 sample_inst->humid = rel_humidity; 									//Update the array for humidity
   	 /*************************************************************************************************************************/
-	 HAL_Delay(1000);
+	 //HAL_Delay(1000);
 
-  __HAL_I2C_DISABLE(&hi2c3); //Restarting i2c3 made it work
-  HAL_Delay(500);
-  __HAL_I2C_ENABLE(&hi2c3);
-  HAL_Delay(100);
+ // __HAL_I2C_DISABLE(&hi2c3); //Restarting i2c3 made it work
+  //HAL_Delay(500);
+  //__HAL_I2C_ENABLE(&hi2c3);
+  //HAL_Delay(100);
 
    /****************************************************SOLAR INTENSITY****************************************************/
   	//Query Illuminance sensor to get it turned on
