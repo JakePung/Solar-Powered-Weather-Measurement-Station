@@ -5,10 +5,13 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../Core/Src/frame_buffer.c \
-../Core/Src/glcdfont.c \
-../Core/Src/graphics.c \
 ../Core/Src/main.c \
+../Core/Src/power.c \
+../Core/Src/print_data.c \
+../Core/Src/sensor_query.c \
+../Core/Src/ssd1306.c \
+../Core/Src/ssd1306_fonts.c \
+../Core/Src/ssd1306_tests.c \
 ../Core/Src/stm32u5xx_hal_msp.c \
 ../Core/Src/stm32u5xx_it.c \
 ../Core/Src/syscalls.c \
@@ -16,10 +19,13 @@ C_SRCS += \
 ../Core/Src/system_stm32u5xx.c 
 
 OBJS += \
-./Core/Src/frame_buffer.o \
-./Core/Src/glcdfont.o \
-./Core/Src/graphics.o \
 ./Core/Src/main.o \
+./Core/Src/power.o \
+./Core/Src/print_data.o \
+./Core/Src/sensor_query.o \
+./Core/Src/ssd1306.o \
+./Core/Src/ssd1306_fonts.o \
+./Core/Src/ssd1306_tests.o \
 ./Core/Src/stm32u5xx_hal_msp.o \
 ./Core/Src/stm32u5xx_it.o \
 ./Core/Src/syscalls.o \
@@ -27,10 +33,13 @@ OBJS += \
 ./Core/Src/system_stm32u5xx.o 
 
 C_DEPS += \
-./Core/Src/frame_buffer.d \
-./Core/Src/glcdfont.d \
-./Core/Src/graphics.d \
 ./Core/Src/main.d \
+./Core/Src/power.d \
+./Core/Src/print_data.d \
+./Core/Src/sensor_query.d \
+./Core/Src/ssd1306.d \
+./Core/Src/ssd1306_fonts.d \
+./Core/Src/ssd1306_tests.d \
 ./Core/Src/stm32u5xx_hal_msp.d \
 ./Core/Src/stm32u5xx_it.d \
 ./Core/Src/syscalls.d \
@@ -45,7 +54,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/frame_buffer.cyclo ./Core/Src/frame_buffer.d ./Core/Src/frame_buffer.o ./Core/Src/frame_buffer.su ./Core/Src/glcdfont.cyclo ./Core/Src/glcdfont.d ./Core/Src/glcdfont.o ./Core/Src/glcdfont.su ./Core/Src/graphics.cyclo ./Core/Src/graphics.d ./Core/Src/graphics.o ./Core/Src/graphics.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32u5xx_hal_msp.cyclo ./Core/Src/stm32u5xx_hal_msp.d ./Core/Src/stm32u5xx_hal_msp.o ./Core/Src/stm32u5xx_hal_msp.su ./Core/Src/stm32u5xx_it.cyclo ./Core/Src/stm32u5xx_it.d ./Core/Src/stm32u5xx_it.o ./Core/Src/stm32u5xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32u5xx.cyclo ./Core/Src/system_stm32u5xx.d ./Core/Src/system_stm32u5xx.o ./Core/Src/system_stm32u5xx.su
+	-$(RM) ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/power.cyclo ./Core/Src/power.d ./Core/Src/power.o ./Core/Src/power.su ./Core/Src/print_data.cyclo ./Core/Src/print_data.d ./Core/Src/print_data.o ./Core/Src/print_data.su ./Core/Src/sensor_query.cyclo ./Core/Src/sensor_query.d ./Core/Src/sensor_query.o ./Core/Src/sensor_query.su ./Core/Src/ssd1306.cyclo ./Core/Src/ssd1306.d ./Core/Src/ssd1306.o ./Core/Src/ssd1306.su ./Core/Src/ssd1306_fonts.cyclo ./Core/Src/ssd1306_fonts.d ./Core/Src/ssd1306_fonts.o ./Core/Src/ssd1306_fonts.su ./Core/Src/ssd1306_tests.cyclo ./Core/Src/ssd1306_tests.d ./Core/Src/ssd1306_tests.o ./Core/Src/ssd1306_tests.su ./Core/Src/stm32u5xx_hal_msp.cyclo ./Core/Src/stm32u5xx_hal_msp.d ./Core/Src/stm32u5xx_hal_msp.o ./Core/Src/stm32u5xx_hal_msp.su ./Core/Src/stm32u5xx_it.cyclo ./Core/Src/stm32u5xx_it.d ./Core/Src/stm32u5xx_it.o ./Core/Src/stm32u5xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32u5xx.cyclo ./Core/Src/system_stm32u5xx.d ./Core/Src/system_stm32u5xx.o ./Core/Src/system_stm32u5xx.su
 
 .PHONY: clean-Core-2f-Src
 

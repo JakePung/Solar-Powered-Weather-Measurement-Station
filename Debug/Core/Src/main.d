@@ -27,12 +27,18 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pwr_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_rtc.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_rtc_ex.h \
+ ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_spi.h \
+ ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_spi_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_uart.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_uart_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_exti.h \
  ../Drivers/BSP/STM32U5xx_Nucleo/stm32u5xx_nucleo.h \
  ../Core/Inc/stm32u5xx_nucleo_conf.h \
- ../Drivers/BSP/STM32U5xx_Nucleo/stm32u5xx_nucleo_errno.h
+ ../Drivers/BSP/STM32U5xx_Nucleo/stm32u5xx_nucleo_errno.h \
+ ../Core/Inc/sensor_query.h ../Core/Inc/data_struct.h \
+ ../Core/Inc/print_data.h ../Core/Inc/power.h ../Core/Inc/main.h \
+ ../Core/Inc/ssd1306.h ../Core/Inc/ssd1306_conf.h \
+ ../Core/Inc/ssd1306_fonts.h ../Core/Inc/ssd1306.h
 ../Core/Inc/main.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal.h:
 ../Core/Inc/stm32u5xx_hal_conf.h:
@@ -62,9 +68,20 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pwr_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_rtc.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_rtc_ex.h:
+../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_spi.h:
+../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_spi_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_uart.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_uart_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_exti.h:
 ../Drivers/BSP/STM32U5xx_Nucleo/stm32u5xx_nucleo.h:
 ../Core/Inc/stm32u5xx_nucleo_conf.h:
 ../Drivers/BSP/STM32U5xx_Nucleo/stm32u5xx_nucleo_errno.h:
+../Core/Inc/sensor_query.h:
+../Core/Inc/data_struct.h:
+../Core/Inc/print_data.h:
+../Core/Inc/power.h:
+../Core/Inc/main.h:
+../Core/Inc/ssd1306.h:
+../Core/Inc/ssd1306_conf.h:
+../Core/Inc/ssd1306_fonts.h:
+../Core/Inc/ssd1306.h:
